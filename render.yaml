@@ -1,0 +1,19 @@
+# Render Blueprint — native Python web service.
+#
+# This is the simple path: it runs the crawler with gunicorn. JavaScript
+# verification needs a real browser, which the native runtime can't reliably
+# provide — so on this deploy, leave "Verify with JavaScript" off (the app
+# degrades gracefully). For full JS verification, deploy with the Dockerfile
+# instead (see README → Deploying to Render).
+services:
+  - type: web
+    name: github-crawler
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # SSE streams are long-lived, so disable gunicorn's worker timeout and use
+    # threaded workers (each open stream holds one thread).
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 0
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.6"

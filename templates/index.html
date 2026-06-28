@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Web Crawler</title>
+  <style>
+    :root {
+      --bg: #0d1117; --panel: #161b22; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --accent: #2f81f7;
+      --good: #3fb950; --warn: #d29922; --bad: #f85149; --js: #a371f7;
+    }
+    * { box-sizing: border-box; }
+    html, body { overflow-x: hidden; }
+    html { background: var(--bg); }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 50% -10%, #1b2330 0%, var(--bg) 60%);
+      color: var(--text); min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center;
+    }
+
+    /* Scrollbars: track blends with the site background, just the thumb shows */
+    * { scrollbar-width: thin; scrollbar-color: #30363d var(--bg); }
+    ::-webkit-scrollbar { width: 10px; height: 10px; background: var(--bg); }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 999px; border: 2px solid var(--bg); background-clip: padding-box; }
+    ::-webkit-scrollbar-thumb:hover { background: #484f58; background-clip: padding-box; }
+    ::-webkit-scrollbar-corner { background: var(--bg); }
+    header { text-align: center; margin-top: 5vh; padding: 0 20px; }
+    h1 { font-size: 1.9rem; margin: 0 0 6px; letter-spacing: -0.02em; }
+    h1 .gh { color: var(--accent); }
+    .sub { color: var(--muted); font-size: 0.95rem; max-width: 640px; margin: 0 auto; }
+
+    .launchpad {
+      margin: 30px auto 0; width: min(820px, 94vw);
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 16px; padding: 22px; box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+    }
+    .row { display: flex; gap: 10px; }
+    input[type="text"] {
+      flex: 1; padding: 14px 16px; font-size: 1.05rem; background: #0d1117;
+      border: 1px solid var(--border); border-radius: 10px; color: var(--text); outline: none;
+    }
+    input[type="text"]:focus { border-color: var(--accent); }
+    /* Main search bar: no background (blends with the panel), even when autofilled. */
+    #url { background: transparent; }
+    #url:-webkit-autofill, #url:-webkit-autofill:hover, #url:-webkit-autofill:focus {
+      -webkit-text-fill-color: var(--text);
+      -webkit-box-shadow: 0 0 0 1000px var(--panel) inset;
+      caret-color: var(--text);
+      transition: background-color 9999s ease;
+    }
+    button {
+      padding: 0 22px; font-size: 1rem; font-weight: 600; background: var(--accent);
+      color: white; border: none; border-radius: 10px; cursor: pointer; white-space: nowrap;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .stopbtn { background: var(--bad); }
+    .opts { display: flex; gap: 18px; margin-top: 14px; color: var(--muted);
+            font-size: 0.85rem; align-items: center; flex-wrap: wrap; }
+    .opts label { display: flex; gap: 6px; align-items: center; }
+    .opts input { width: 64px; padding: 5px 8px; background: #0d1117;
+                  border: 1px solid var(--border); border-radius: 6px; color: var(--text); }
+
+    /* Advanced options */
+    .advanced { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+    .advanced summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; user-select: none; }
+    .advanced summary:hover { color: var(--text); }
+    .adv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+    .adv-grid label { display: flex; flex-direction: column; gap: 5px; font-size: 0.82rem; color: var(--muted); }
+    .adv-grid label.wide { grid-column: 1 / -1; }
+    .adv-grid label.check { flex-direction: row; align-items: center; gap: 8px; grid-column: 1 / -1; color: var(--text); }
+    .adv-grid input[type="text"], .adv-grid input[type="number"] {
+      padding: 8px 10px; background: #0d1117; border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-size: 0.9rem; width: 100%;
+    }
+    .adv-grid input[type="checkbox"] { width: auto; }
+    .adv-grid small { color: #6e7681; font-size: 0.72rem; }
+    .limrow { display: flex; align-items: center; gap: 8px; }
+    .limrow input[type="number"] { flex: 1; }
+    .limrow input[type="checkbox"] { flex: 0 0 auto; }
+    .limrow input[type="number"]:disabled { opacity: 0.4; }
+    .adv-grid input:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .stats { width: min(820px, 94vw); display: flex; gap: 10px; margin: 18px auto 0; flex-wrap: wrap; }
+    .stat { flex: 1; min-width: 110px; background: var(--panel); border: 1px solid var(--border);
+            border-radius: 10px; padding: 12px 14px; }
+    .stat .k { font-size: 1.4rem; font-weight: 700; }
+    .stat .l { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    /* Cut list */
+    .cuts { width: min(820px, 94vw); margin: 14px auto 0; }
+    .cuts.hidden { display: none; }
+    .cuts-head { display: flex; align-items: center; gap: 10px; color: var(--warn);
+                 font-size: 0.82rem; margin-bottom: 8px; }
+    .cuts-head button { background: transparent; border: 1px solid var(--border); color: var(--muted);
+                        padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; }
+    .cutchips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .cutchip { font-size: 0.78rem; color: var(--text); background: #2d2410;
+               border: 1px solid var(--warn); padding: 4px 8px; border-radius: 6px;
+               display: flex; align-items: center; gap: 6px; max-width: 100%; }
+    .cutchip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; }
+    .cutchip b { cursor: pointer; color: var(--warn); }
+
+    /* Backtrack */
+    .backtrack { width: min(820px, 94vw); margin: 18px auto 0; background: var(--panel);
+                 border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+    .backtrack summary { cursor: pointer; color: var(--js); font-size: 0.9rem; font-weight: 600; user-select: none; }
+    .bt-add { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+    .bt-add input { flex: 1; min-width: 140px; height: 38px; padding: 0 11px; background: #0d1117;
+                    border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.88rem; }
+    .bt-add .bt-text { flex: 0 0 130px; min-width: 100px; }
+    .bt-add .bt-type, .bt-row .bt-etype {
+      height: 38px; padding: 0 34px 0 12px; min-width: 100px;
+      appearance: none; -webkit-appearance: none; -moz-appearance: none;
+      background-color: #0d1117;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none' stroke='%238b949e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M1 1l4 4 4-4'/></svg>");
+      background-repeat: no-repeat; background-position: right 13px center;
+      border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+      font-size: 0.85rem; cursor: pointer; flex: 0 0 auto;
+    }
+    .bt-row .bt-etype { height: 30px; font-size: 0.8rem; background-position: right 11px center; }
+    .bt-add .bt-arrow { color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
+    .bt-add button {
+      height: 38px; padding: 0 22px; background: var(--js); color: #fff; border: none;
+      border-radius: 8px; font-weight: 600; font-size: 0.88rem; cursor: pointer;
+      transition: filter 0.12s ease; box-shadow: 0 2px 10px rgba(163,113,247,0.35);
+    }
+    .bt-add button:hover { filter: brightness(1.12); }
+    .bt-add button:active { filter: brightness(0.95); }
+    .bt-list { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+    .bt-row { display: flex; align-items: center; gap: 8px; font-size: 0.8rem;
+              background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; }
+    .bt-row .bt-f, .bt-row .bt-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
+    .bt-row .bt-f { color: var(--text); } .bt-row .bt-t { color: var(--js); }
+    .bt-row .bt-sep { color: var(--muted); }
+    .bt-row input { flex: 1; min-width: 70px; height: 30px; padding: 0 8px; background: #161b22;
+                    border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.8rem; }
+    .bt-row .bt-ex { flex: 0 0 110px; }
+    .bt-row button { height: 28px; font-size: 0.75rem; padding: 0 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); }
+    .bt-row .bt-edit { background: transparent; color: var(--muted); margin-left: auto; }
+    .bt-row .bt-edit:hover { color: var(--text); border-color: var(--js); }
+    .bt-row .bt-save { background: var(--js); color: #fff; border-color: var(--js); margin-left: auto; }
+    .bt-row .bt-cancel { background: transparent; color: var(--muted); }
+    .bt-row b { cursor: pointer; color: var(--bad); padding-left: 6px; }
+
+    /* Legend */
+    .legend { width: min(820px, 94vw); margin: 18px auto 6px; display: flex; gap: 16px;
+              color: var(--muted); font-size: 0.78rem; align-items: center; flex-wrap: wrap; }
+    .legend b { color: var(--text); font-weight: 600; }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: middle; margin-right: 5px; }
+    .dot.green { background: var(--good); } .dot.blue { background: var(--accent); } .dot.grey { background: #6e7681; }
+
+    /* The search TREE */
+    .tree {
+      width: min(820px, 94vw); margin: 4px auto 56px; background: #010409;
+      border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px;
+      max-height: 60vh; overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem;
+    }
+    .tree:empty::after { content: "The search tree will grow here as crawlers fan out…"; color: var(--muted); }
+    .tree-search {
+      display: block; width: min(820px, 94vw); margin: 4px auto 8px; padding: 9px 12px;
+      background: #0d1117; border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-size: 0.85rem; outline: none;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .tree-search:focus { border-color: var(--accent); }
+    .tree-search.hidden { display: none; }
+    /* While filtering: flatten the tree (no indent/connectors), force all
+       branches open, and keep the scissors visible on every shown row. */
+    .tree.searching .kids { display: block !important; margin-left: 0; padding-left: 0; border-left: none; }
+    .tree.searching .nrow .tog { visibility: hidden; }
+    .tree.searching .nrow .cut { opacity: 1; }
+    .kids { margin-left: 14px; padding-left: 12px; border-left: 1px solid #21262d; }
+    .node.path-line > .kids { border-left-color: var(--good); }
+    .nrow { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 6px; white-space: nowrap; }
+    .nrow:hover { background: #0d1117; }
+    .nrow .tog { width: 14px; color: var(--muted); cursor: pointer; user-select: none; text-align: center; }
+    .nrow .lab { overflow: hidden; text-overflow: ellipsis; }
+    .nrow a { color: var(--accent); text-decoration: none; }
+    .nrow a:hover { text-decoration: underline; }
+    .nrow .cut { margin-left: 8px; cursor: pointer; color: #6e7681; font-size: 1.15rem; line-height: 1; opacity: 0; }
+    .nrow:hover .cut { opacity: 1; }
+    .nrow .cut:hover { color: var(--bad); }
+    .nrow.expanded { color: var(--text); }
+    .nrow.unexpanded { color: var(--muted); }
+    .nrow.goal { color: var(--good); }
+    .nrow.on-path { background: rgba(63,185,80,0.14); }
+    .nrow.on-path .lab a, .nrow.on-path .lab { color: var(--good); font-weight: 700; }
+    .nrow.cutting { text-decoration: line-through; opacity: 0.5; }
+    .collapsed > .kids { display: none; }
+
+    .result { width: min(820px, 94vw); margin: 16px auto 0; }
+    .result.hidden { display: none; }
+    .banner { border-radius: 12px; padding: 14px 18px; font-size: 0.95rem; }
+    .banner.ok { background: rgba(63,185,80,0.12); border: 1px solid var(--good); color: var(--good); }
+    .banner.fail { background: rgba(248,81,73,0.1); border: 1px solid var(--bad); color: var(--bad); }
+
+    /* Bottom path section: just the route, with link text + URL */
+    .pathlist { width: min(820px, 94vw); margin: 10px auto 60px; }
+    .pathlist.hidden { display: none; }
+    .pathcard { background: var(--panel); border: 1px solid var(--good); border-radius: 14px; padding: 20px 22px; }
+    .pathcard + .pathcard { margin-top: 14px; }
+    .pathcard h3 { margin: 0 0 4px; font-size: 1.1rem; }
+    .pathcard h3 .phops { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
+    .pathcard.js { border-color: var(--js); }
+    .pathcard.js h3 { color: var(--js); }
+    .pathcard.js .pstep.goal .pnum { background: var(--js); border-color: var(--js); color: #1a0a2e; }
+    .banner.warn { background: rgba(163,113,247,0.12); border: 1px solid var(--js); color: var(--js); margin-top: 10px; }
+    .pathcard .ph { color: var(--muted); font-size: 0.85rem; margin: 0 0 16px; }
+    .pstep { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+    .pstep:first-of-type { border-top: none; }
+    .pstep .pnum { width: 28px; height: 28px; border-radius: 50%; background: #21262d; border: 1px solid var(--border);
+                   display: flex; align-items: center; justify-content: center; font-size: 0.78rem; color: var(--muted); }
+    .pstep.goal .pnum { background: var(--good); border-color: var(--good); color: #03240f; font-weight: 700; }
+    .pstep .ptext { font-size: 0.95rem; font-weight: 600; color: var(--text); margin-bottom: 3px; word-break: break-word; }
+    .pstep .ptext .q { color: var(--good); }
+    .pstep .pkind { color: var(--muted); font-weight: 400; font-size: 0.82rem; }
+    .pstep a.purl { color: var(--accent); text-decoration: none; font-size: 0.85rem;
+                    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+    .pstep a.purl:hover { text-decoration: underline; }
+    footer { color: var(--muted); font-size: 0.8rem; margin: auto 0 24px; }
+    .pulse { animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Web Crawler <span class="gh">Pathfinder</span></h1>
+  </header>
+
+  <div class="launchpad">
+    <div class="row">
+      <input id="url" type="text" placeholder="https://en.wikipedia.org/wiki/Cat" autocomplete="off" />
+      <button id="go">Launch crawlers</button>
+      <button id="stop" class="stopbtn" disabled>Stop</button>
+    </div>
+    <div class="opts">
+      <label>Threads <input id="workers" type="number" min="1" max="64" value="20" /></label>
+      <label>Max steps <input id="depth" type="number" min="1" max="20" value="10" /></label>
+    </div>
+
+    <details class="advanced" open>
+      <summary>Advanced options</summary>
+      <div class="adv-grid">
+        <label class="wide">Custom ending (goal hosts)
+          <input id="goal" type="text" value="github.com, google.com"
+                 placeholder="github.com, google.com" />
+          <small>Comma-separated hosts.</small>
+        </label>
+        <label class="check">
+          <input id="subdomains" type="checkbox" checked />
+          Match subdomains
+        </label>
+        <label class="check">
+          <input id="nosubpages" type="checkbox" />
+          Don't allow subpages (goal must be the site root)
+        </label>
+        <label>Max total pages
+          <div class="limrow">
+            <input id="maxnodes-on" type="checkbox" checked title="enable this limit" />
+            <input id="maxnodes" type="number" min="50" max="50000" value="10000" />
+          </div>
+        </label>
+        <label>Max Links per page
+          <div class="limrow">
+            <input id="perpage-on" type="checkbox" checked title="enable this limit" />
+            <input id="perpage" type="number" min="1" max="2000" value="1000" />
+          </div>
+        </label>
+        <label>Request timeout (s)
+          <input id="timeout" type="number" min="1" max="30" step="0.5" value="8" />
+        </label>
+        <label>Number of paths
+          <input id="paths" type="number" min="1" max="50" value="1" />
+        </label>
+        <label class="check">
+          <input id="allshortest" type="checkbox" checked />
+          Find all shortest paths (every path with the fewest steps; disables “Number of paths”)
+        </label>
+        <label class="check">
+          <input id="clicksonly" type="checkbox" />
+          No search / typing — only use click paths
+        </label>
+        <label class="check">
+          <input id="js" type="checkbox" checked />
+          Verify with JavaScript (render path pages in a real browser to catch JS-only links)
+        </label>
+      </div>
+    </details>
+  </div>
+
+  <div class="cuts hidden" id="cuts">
+    <div class="cuts-head">
+      <span>✂ Cut links (excluded from the search):</span>
+      <button id="clearcuts">Clear all</button>
+    </div>
+    <div class="cutchips" id="cutchips"></div>
+  </div>
+
+  <details class="backtrack" open>
+    <summary>Known paths</summary>
+    <div class="bt-add">
+      <input id="bt-from" type="text" autocomplete="off" />
+      <span class="bt-arrow">→ links to →</span>
+      <input id="bt-to" type="text" autocomplete="off" />
+      <select id="bt-type" class="bt-type" title="how you reach it">
+        <option value="click">Click</option>
+        <option value="search">Search</option>
+      </select>
+      <input id="bt-text" type="text" class="bt-text" placeholder="Link text" autocomplete="off" />
+      <button id="bt-add-btn" type="button">Add</button>
+    </div>
+    <div class="bt-list" id="bt-list"></div>
+  </details>
+
+  <div class="stats">
+    <div class="stat"><div class="k" id="s-depth">0</div><div class="l">Current depth</div></div>
+    <div class="stat"><div class="k" id="s-visited">0</div><div class="l">Pages crawled</div></div>
+    <div class="stat"><div class="k" id="s-frontier">0</div><div class="l">Frontier size</div></div>
+    <div class="stat"><div class="k" id="s-time">0.0s</div><div class="l">Elapsed</div></div>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot green"></span><b>shortest path</b></span>
+    <span><span class="dot blue"></span>crawled (expanded)</span>
+    <span><span class="dot grey"></span>discovered link</span>
+    <span style="margin-left:auto">hover a node → <b>✂</b> to cut it</span>
+  </div>
+
+  <input id="tree-search" class="tree-search hidden" type="text" placeholder="Filter tree — show only links containing…" autocomplete="off" />
+  <div class="tree" id="tree"></div>
+
+  <div class="result hidden" id="result"></div>
+
+  <div class="pathlist hidden" id="pathlist"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const urlInput = $("url"), goBtn = $("go"), stopBtn = $("stop");
+    // Status text was removed from the UI; keep a detached node so the existing
+    // statusEl.textContent / .className writes stay harmless no-ops.
+    const statusEl = $("status") || document.createElement("span");
+    const treeEl = $("tree"), resultEl = $("result"), pathlistEl = $("pathlist");
+    const treeSearch = $("tree-search");
+    let treeQuery = "";
+    const cutsEl = $("cuts"), cutchipsEl = $("cutchips");
+    let es = null, t0 = 0, timer = null, staticCount = 0, jsCount = 0, jsRendered = 0;
+    let nodeMap = new Map();         // url -> {nodeEl, rowEl, kidsEl}
+    const cuts = new Set();          // urls the user has cut
+    const backtrack = [];            // [{from, to, text}] known links toward goal
+
+    goBtn.addEventListener("click", () => launch());
+    stopBtn.addEventListener("click", () => stopCrawl());
+    urlInput.addEventListener("keydown", e => { if (e.key === "Enter") launch(); });
+    $("clearcuts").addEventListener("click", () => { cuts.clear(); renderCuts(); if (urlInput.value.trim()) launch(); });
+
+    // ---------- backtrack ----------
+    $("bt-add-btn").addEventListener("click", addBacktrack);
+    $("bt-to").addEventListener("keydown", e => { if (e.key === "Enter") addBacktrack(); });
+    $("bt-text").addEventListener("keydown", e => { if (e.key === "Enter") addBacktrack(); });
+
+    function normUrl(u) {
+      u = (u || "").trim();
+      if (u && !/^[a-z]+:\/\//i.test(u)) u = "https://" + u;
+      return u;
+    }
+    function addBacktrack() {
+      const from = normUrl($("bt-from").value);
+      const to = normUrl($("bt-to").value);
+      const text = $("bt-text").value.trim();
+      const type = $("bt-type").value;
+      if (!from || !to) { $("bt-from").focus(); return; }
+      backtrack.push({ from, to, text, type });
+      $("bt-from").value = ""; $("bt-to").value = ""; $("bt-text").value = "";
+      renderBacktrack();
+      $("bt-from").focus();
+    }
+    let btEditing = -1;
+    function renderBacktrack() {
+      const list = $("bt-list");
+      list.innerHTML = "";
+      const short = u => u.replace(/^https?:\/\//, "").replace(/\/$/, "");
+      backtrack.forEach((e, i) => {
+        const row = document.createElement("div");
+        row.className = "bt-row";
+        const sel = (t) => `<select class="bt-etype">
+            <option value="click"${t !== "search" ? " selected" : ""}>Click</option>
+            <option value="search"${t === "search" ? " selected" : ""}>Search</option>
+          </select>`;
+        if (i === btEditing) {
+          row.innerHTML = `<input class="bt-ef" value="${esc(e.from)}" />
+            <span class="bt-sep">→</span>
+            <input class="bt-et" value="${esc(e.to)}" />
+            ${sel(e.type)}
+            <input class="bt-ex" value="${esc(e.text || "")}" placeholder="Link text" />`;
+          const save = document.createElement("button");
+          save.className = "bt-save"; save.textContent = "Save";
+          save.addEventListener("click", () => {
+            const f = normUrl(row.querySelector(".bt-ef").value);
+            const t = normUrl(row.querySelector(".bt-et").value);
+            if (!f || !t) { row.querySelector(".bt-ef").focus(); return; }
+            backtrack[i] = {
+              from: f, to: t,
+              text: row.querySelector(".bt-ex").value.trim(),
+              type: row.querySelector(".bt-etype").value,
+            };
+            btEditing = -1; renderBacktrack();
+          });
+          const cancel = document.createElement("button");
+          cancel.className = "bt-cancel"; cancel.textContent = "Cancel";
+          cancel.addEventListener("click", () => { btEditing = -1; renderBacktrack(); });
+          row.append(save, cancel);
+        } else {
+          const verb = e.type === "search" ? "Search" : "Click";
+          const tail = verb + (e.text ? ` “${esc(e.text)}”` : "");
+          row.innerHTML = `<span class="bt-f" title="${esc(e.from)}">${esc(short(e.from))}</span>
+            <span class="bt-sep">→</span>
+            <span class="bt-t" title="${esc(e.to)}">${esc(short(e.to))}</span>
+            <span class="bt-sep">· ${tail}</span>`;
+          const edit = document.createElement("button");
+          edit.className = "bt-edit"; edit.textContent = "Edit";
+          edit.addEventListener("click", () => { btEditing = i; renderBacktrack(); });
+          const x = document.createElement("b");
+          x.textContent = "×"; x.title = "remove";
+          x.addEventListener("click", () => {
+            backtrack.splice(i, 1);
+            if (btEditing === i) btEditing = -1;
+            renderBacktrack();
+          });
+          row.append(edit, x);
+        }
+        list.appendChild(row);
+      });
+    }
+
+    // ---------- cut list ----------
+    function renderCuts() {
+      cutsEl.classList.toggle("hidden", cuts.size === 0);
+      cutchipsEl.innerHTML = "";
+      for (const u of cuts) {
+        const chip = document.createElement("div");
+        chip.className = "cutchip";
+        const s = document.createElement("span"); s.textContent = u; s.title = u;
+        const x = document.createElement("b"); x.textContent = "×"; x.title = "un-cut";
+        x.addEventListener("click", () => { cuts.delete(u); renderCuts(); if (urlInput.value.trim()) launch(); });
+        chip.append(s, x); cutchipsEl.appendChild(chip);
+      }
+    }
+    function addCut(url, rowEl) {
+      if (cuts.has(url)) return;
+      cuts.add(url);
+      if (rowEl) rowEl.classList.add("cutting");
+      renderCuts();
+      launch(); // re-search without this link
+    }
+
+    // ---------- stats / timer ----------
+    function setStats({ depth, visited, frontier }) {
+      if (depth != null) $("s-depth").textContent = depth;
+      if (visited != null) $("s-visited").textContent = visited;
+      if (frontier != null) $("s-frontier").textContent = frontier;
+    }
+    function startTimer() {
+      t0 = performance.now();
+      timer = setInterval(() => { $("s-time").textContent = ((performance.now()-t0)/1000).toFixed(1)+"s"; }, 100);
+    }
+    function stopTimer() { if (timer) clearInterval(timer); timer = null; }
+
+    // ---------- tree building ----------
+    function shortHost(u) { try { return new URL(u).host.replace(/^www\./,""); } catch { return u; } }
+
+    function makeNode(url, depth, isGoal) {
+      const node = document.createElement("div");
+      node.className = "node";
+      const row = document.createElement("div");
+      row.className = "nrow unexpanded" + (isGoal ? " goal" : "");
+      row.dataset.url = url;
+
+      const tog = document.createElement("span");
+      tog.className = "tog"; tog.textContent = "";
+      tog.addEventListener("click", () => node.classList.toggle("collapsed"));
+
+      const lab = document.createElement("span");
+      lab.className = "lab";
+      const a = document.createElement("a");
+      a.href = url; a.target = "_blank"; a.rel = "noopener";
+      a.textContent = (depth === 0 ? "● " : "") + shortHost(url) + new URL(url).pathname;
+      a.title = url;
+      lab.appendChild(a);
+
+      const cut = document.createElement("span");
+      cut.className = "cut"; cut.textContent = "✂"; cut.title = "cut this link";
+      cut.addEventListener("click", (e) => { e.preventDefault(); addCut(url, row); });
+
+      row.append(tog, lab, cut);
+      const kids = document.createElement("div");
+      kids.className = "kids";
+      node.append(row, kids);
+      return { node, row, kids, tog };
+    }
+
+    function addTreeNode(url, parent, depth, isGoal) {
+      if (nodeMap.has(url)) return;
+      treeSearch.classList.remove("hidden"); // there are links to filter now
+      const made = makeNode(url, depth, isGoal);
+      nodeMap.set(url, { nodeEl: made.node, rowEl: made.row, kidsEl: made.kids, togEl: made.tog });
+      if (parent == null) {
+        treeEl.appendChild(made.node);
+      } else {
+        const p = nodeMap.get(parent);
+        if (p) {
+          p.kidsEl.appendChild(made.node);
+          if (p.togEl.textContent === "") p.togEl.textContent = "▾"; // parent now has kids
+        } else {
+          treeEl.appendChild(made.node); // orphan fallback
+        }
+      }
+      if (treeQuery) applyRowFilter(made.row); // keep live nodes filtered
+    }
+
+    // ---------- tree filter ----------
+    function rowMatches(rowEl, q) {
+      const url = (rowEl.dataset.url || "").toLowerCase();
+      const text = (rowEl.querySelector(".lab")?.textContent || "").toLowerCase();
+      return url.includes(q) || text.includes(q);
+    }
+    function applyRowFilter(rowEl) {
+      rowEl.style.display = (!treeQuery || rowMatches(rowEl, treeQuery)) ? "" : "none";
+    }
+    function filterTree() {
+      treeQuery = treeSearch.value.trim().toLowerCase();
+      treeEl.classList.toggle("searching", treeQuery.length > 0);
+      for (const n of nodeMap.values()) applyRowFilter(n.rowEl);
+    }
+    treeSearch.addEventListener("input", filterTree);
+
+    function markVisited(url) {
+      const n = nodeMap.get(url);
+      if (n) { n.rowEl.classList.remove("unexpanded"); n.rowEl.classList.add("expanded"); }
+    }
+
+    function highlightPath(path) {
+      for (let i = 0; i < path.length; i++) {
+        const n = nodeMap.get(path[i]);
+        if (!n) continue;
+        n.rowEl.classList.add("on-path");
+        n.nodeEl.classList.remove("collapsed"); // keep path visible
+        if (i < path.length - 1) n.nodeEl.classList.add("path-line");
+      }
+      const last = nodeMap.get(path[path.length - 1]);
+      if (last) last.rowEl.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+
+    // ---------- launch ----------
+    function launch() {
+      let url = urlInput.value.trim();
+      if (!url) { urlInput.focus(); return; }
+      if (es) es.close();
+      treeEl.innerHTML = "";
+      nodeMap = new Map();
+      treeSearch.classList.add("hidden"); // re-hide until the new tree has links
+      resultEl.className = "result hidden"; resultEl.innerHTML = "";
+      pathlistEl.className = "pathlist hidden"; pathlistEl.innerHTML = "";
+      staticCount = 0; jsCount = 0; jsRendered = 0;
+      setStats({ depth: 0, visited: 0, frontier: 0 });
+      goBtn.disabled = true; stopBtn.disabled = false;
+      statusEl.textContent = "crawling…"; statusEl.className = "pulse";
+      startTimer();
+
+      const qs = new URLSearchParams({
+        url, workers: $("workers").value || 20, depth: $("depth").value || 10,
+        goal: $("goal").value || "github.com, google.com",
+        subdomains: $("subdomains").checked ? "1" : "0",
+        subpages: $("nosubpages").checked ? "0" : "1",
+        maxnodes: $("maxnodes-on").checked ? ($("maxnodes").value || 10000) : 0,
+        perpage: $("perpage-on").checked ? ($("perpage").value || 1000) : 0,
+        timeout: $("timeout").value || 8,
+        paths: $("paths").value || 1,
+        allshortest: $("allshortest").checked ? "1" : "0",
+        clicksonly: $("clicksonly").checked ? "1" : "0",
+        js: $("js").checked ? "1" : "0",
+      });
+      if (cuts.size) qs.set("block", [...cuts].join("\n"));
+      if (backtrack.length) qs.set("bt", JSON.stringify(backtrack));
+      es = new EventSource("/crawl?" + qs.toString());
+
+      es.addEventListener("start", () => {});
+      es.addEventListener("node", e => {
+        const d = JSON.parse(e.data);
+        addTreeNode(d.url, d.parent, d.depth, !!d.goal);
+      });
+      es.addEventListener("level", e => {
+        const d = JSON.parse(e.data); setStats({ depth: d.depth, frontier: d.frontier });
+      });
+      es.addEventListener("visit", e => {
+        const d = JSON.parse(e.data); setStats({ visited: d.visited }); markVisited(d.url);
+      });
+      es.addEventListener("found", e => {
+        const d = JSON.parse(e.data);
+        const kind = d.kind || "static";
+        const idx = d.index || 0;
+        const steps = d.steps || d.path.map(u => ({ url: u, text: "" }));
+        if (kind === "static" && idx === 0) highlightPath(d.path); // highlight shortest in tree
+        appendPathSection(steps, d.hops, idx, kind);
+        if (kind === "static") staticCount = idx + 1; else jsCount = idx + 1;
+        // Don't close the stream here — more paths / the JS phase may follow.
+        updateBanner();
+      });
+      es.addEventListener("jsphase", e => {
+        const d = JSON.parse(e.data);
+        statusEl.className = "pulse";
+        statusEl.textContent = d.available
+          ? `verifying ${d.pages} page${d.pages === 1 ? "" : "s"} with JavaScript…`
+          : "JavaScript verify unavailable";
+      });
+      es.addEventListener("jsrender", () => {
+        jsRendered++;
+        statusEl.textContent = `JS-rendering page ${jsRendered}…`;
+      });
+      es.addEventListener("jsnote", e => {
+        addNote(JSON.parse(e.data).message);
+      });
+      es.addEventListener("jsdone", () => { statusEl.className = ""; updateBanner(); });
+      es.addEventListener("exhausted", e => {
+        const d = JSON.parse(e.data);
+        banner(false, `No path found within the step limit (crawled ${d.visited} pages). Try more steps/threads, or un-cut a link.`);
+        finish("no path found");
+      });
+      es.addEventListener("error", e => { if (e.data) { try { banner(false, JSON.parse(e.data).message); } catch {} } });
+      es.addEventListener("end", () => finish());
+      es.onerror = () => { if (es && es.readyState === 2) finish("connection closed"); };
+    }
+
+    function esc(s) {
+      return (s || "").replace(/[&<>"']/g, c =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    // Bottom section: one card per path. Each card shows the route — for every
+    // hop, the link's text + its URL.
+    function appendPathSection(steps, hops, index, kind) {
+      pathlistEl.className = "pathlist";
+      const rows = steps.map((s, i) => {
+        const isStart = i === 0;
+        const isGoal = i === steps.length - 1;
+        let head;
+        if (isStart) {
+          head = `<div class="ptext">Starting page</div>`;
+        } else {
+          const txt = s.text ? `&ldquo;<span class="q">${esc(s.text)}</span>&rdquo;`
+                             : `<span class="pkind">(link had no visible text)</span>`;
+          const ty = s.type;
+          let inner;
+          if (ty && ty !== "click" && ty !== "search" && ty.includes("___")) {
+            // Custom instruction with a placeholder for the text, e.g.
+            // "Type ___ and Click Enter" → Type "url" and Click Enter
+            inner = esc(ty).replace("___", txt);
+          } else {
+            const verb = ty === "search" ? "Search" : (ty && ty !== "click" ? esc(ty) : "Click");
+            inner = `${verb} ${txt}`;
+          }
+          head = `<div class="ptext">${inner}</div>`;
+        }
+        return `<div class="pstep ${isGoal ? "goal" : ""}">
+            <div class="pnum">${i}</div>
+            <div>${head}
+              <a class="purl" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a>
+            </div>
+          </div>`;
+      }).join("");
+      const isJs = kind === "js";
+      const title = isJs ? `Javascript Path ${index + 1}` : `Path ${index + 1}`;
+      const card = document.createElement("div");
+      card.className = "pathcard" + (isJs ? " js" : "");
+      card.innerHTML = `<h3>${title}: <span class="phops">${hops} step${hops === 1 ? "" : "s"}</span></h3>${rows}`;
+      pathlistEl.appendChild(card);
+    }
+
+    function banner(ok, msg) {
+      resultEl.className = "result";
+      resultEl.innerHTML = `<div class="banner ${ok ? "ok" : "fail"}">${msg}</div>`;
+    }
+    function updateBanner() {
+      let msg = `Found ${staticCount} path${staticCount === 1 ? "" : "s"} to the goal.`;
+      if (jsCount > 0) msg += ` JavaScript verification found ${jsCount} more (in violet).`;
+      banner(true, msg);
+      statusEl.textContent = `found · ${staticCount}+${jsCount} paths`;
+    }
+    function addNote(msg) {
+      if (resultEl.className.indexOf("result") < 0) resultEl.className = "result";
+      const div = document.createElement("div");
+      div.className = "banner warn";
+      div.textContent = msg;
+      resultEl.appendChild(div);
+    }
+    function finish(msg) {
+      stopTimer(); goBtn.disabled = false; stopBtn.disabled = true; statusEl.className = "";
+      if (msg) statusEl.textContent = msg;
+      if (es) { es.close(); es = null; }
+    }
+    // Closing the EventSource drops the connection; the server detects the
+    // disconnect and signals the crawler thread to stop.
+    function stopCrawl() {
+      if (!es) return;
+      finish("stopped");
+    }
+
+    // ---------- persistence (localStorage) ----------
+    const LS_KEY = "gcrawler:settings:v1";
+    const TEXT_FIELDS = ["url", "workers", "depth", "goal", "maxnodes", "perpage", "timeout", "paths"];
+    const CHECK_FIELDS = ["subdomains", "nosubpages", "js", "maxnodes-on", "perpage-on", "allshortest", "clicksonly"];
+
+    // Grey out a limit's number input when its toggle is off, and disable
+    // "Number of paths" when "find all shortest paths" is on.
+    function updateLimitInputs() {
+      $("maxnodes").disabled = !$("maxnodes-on").checked;
+      $("perpage").disabled = !$("perpage-on").checked;
+      $("paths").disabled = $("allshortest").checked;
+    }
+    $("maxnodes-on").addEventListener("change", updateLimitInputs);
+    $("perpage-on").addEventListener("change", updateLimitInputs);
+    $("allshortest").addEventListener("change", updateLimitInputs);
+
+    function saveSettings() {
+      const s = { backtrack };
+      TEXT_FIELDS.forEach(id => s[id] = $(id).value);
+      CHECK_FIELDS.forEach(id => s[id] = $(id).checked);
+      try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch (e) {}
+    }
+    function loadSettings() {
+      let s = null;
+      try { s = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) {}
+      if (!s) return;
+      TEXT_FIELDS.forEach(id => { if (s[id] != null) $(id).value = s[id]; });
+      CHECK_FIELDS.forEach(id => { if (typeof s[id] === "boolean") $(id).checked = s[id]; });
+      if (Array.isArray(s.backtrack)) {
+        backtrack.length = 0;
+        s.backtrack.forEach(e => backtrack.push(e));
+        renderBacktrack();
+      }
+    }
+
+    // Persist on any settings change, and whenever known paths change.
+    TEXT_FIELDS.concat(CHECK_FIELDS).forEach(id => {
+      $(id).addEventListener("change", saveSettings);
+      $(id).addEventListener("input", saveSettings);
+    });
+    const _renderBacktrack = renderBacktrack;
+    renderBacktrack = function () { _renderBacktrack(); saveSettings(); };
+
+    loadSettings();
+    updateLimitInputs();
+  </script>
+</body>
+</html>

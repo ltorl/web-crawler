@@ -1,0 +1,7 @@
+Flask>=3.0
+requests>=2.31
+beautifulsoup4>=4.12
+gunicorn>=21.2
+# Optional — enables the "Verify with JavaScript" phase. After installing,
+# run: playwright install chromium
+playwright>=1.40
