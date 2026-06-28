@@ -7,7 +7,7 @@
 # instead (see README → Deploying to Render).
 services:
   - type: web
-    name: github-crawler
+    name: web-crawler
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
