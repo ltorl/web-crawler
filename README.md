@@ -1,4 +1,4 @@
-# Path to GitHub — a BFS web crawler
+# Web crawler
 
 A web app: drop any URL in the center box and it dispatches concurrent crawlers
 that breadth-first their way across the open web until they reach
